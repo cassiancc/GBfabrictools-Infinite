@@ -1,0 +1,31 @@
+{
+   "version": 1,
+   "overrides": {
+      "fabric": {
+         "depends": {
+           "minecraft": "1.16-alpha.20.13.inf"
+         }
+      },
+     "fabric-registry-sync-v0": {
+       "depends": {
+         "minecraft": "1.16-alpha.20.13.inf"
+       }
+     },
+     "fabric-biomes-v1": {
+       "depends": {
+         "minecraft": "1.16-alpha.20.13.inf"
+       }
+     },
+     "fabric-particles-v1": {
+       "depends": {
+         "minecraft": "1.16-alpha.20.13.inf"
+       }
+     },
+      "wi-zoom": {
+        "depends": {
+           "minecraft": "1.16-alpha.20.13.inf"
+
+        }
+      }
+   }
+ }

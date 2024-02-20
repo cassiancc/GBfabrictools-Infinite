@@ -7,12 +7,8 @@ package de.guntram.mcmod.fabrictools;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
-import de.guntram.mcmod.fabrictools.Types.ConfigurationMinecraftColor;
-import de.guntram.mcmod.fabrictools.Types.ConfigurationSelectList;
-import de.guntram.mcmod.fabrictools.Types.ConfigurationTrueColor;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -23,13 +19,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import net.minecraft.client.resource.language.I18n;
 
 /**
  *
  * @author gbl
  */
-public class Configuration implements IConfiguration {
+public class Configuration {
     
     public final static int CATEGORY_CLIENT = 0;            // ignored, forge compat.
     public final static int CATEGORY_GENERAL = 1;           // ignored, forge compat.
@@ -50,29 +45,8 @@ public class Configuration implements IConfiguration {
         } catch (IOException ex) {
             System.err.println("Trying to load config file "+configFile.getAbsolutePath()+":");
             ex.printStackTrace(System.err);
-        } catch (JsonSyntaxException ex) {
-            System.err.println("Syntax error in config file "+configFile.getAbsolutePath()+" - using defaults");
-            ex.printStackTrace(System.err);
         }
         wasChanged=false;
-        try {
-            for (Map.Entry<String, ConfigurationItem> entry: items.entrySet()) {
-                if (entry.getValue().getValue() instanceof Map) {
-                    Map map = (Map)(Object)entry.getValue().getValue();
-                    Object type = map.get("type");
-                    if (type == null) {
-                        continue;
-                    } else if (type.equals(ConfigurationMinecraftColor.class.getSimpleName())) {
-                        entry.getValue().setValue(ConfigurationMinecraftColor.fromJsonMap(map));
-                    } else if (type.equals(ConfigurationTrueColor.class.getSimpleName())) {
-                        entry.getValue().setValue(ConfigurationTrueColor.fromJsonMap(map));
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            System.err.println("Error when upgrading config file "+configFile.getAbsolutePath()+" - hope for the best");
-            System.err.println("If you experience crashes, delete the file!");
-        }
     }
     
     public boolean hasChanged() {
@@ -111,30 +85,6 @@ public class Configuration implements IConfiguration {
         return (String) getValue(description, category, defVal, toolTip, String.class);
     }
     
-    public int getIndexedColor(String description, int category, int defIndex, String toolTip) {
-        return (int) getValue(description, category, defIndex, 0, 15, toolTip, ConfigurationMinecraftColor.class);
-    }
-
-    public int getRGB(String description, int category, int defRGB, String toolTip) {
-        return (int) getValue(description, category, defRGB, 0, 0xffffff, toolTip, ConfigurationTrueColor.class);
-    }
-    
-    public int getSelection(String description, int category, int defVal, String[] options, String toolTip) {
-        ConfigurationItem item=items.get(description);
-        if (item==null) {
-            items.put(description, new ConfigurationSelectList(description, toolTip, options, defVal, defVal));
-            wasChanged=true;
-            return defVal;
-        }
-        else if (!(item instanceof ConfigurationSelectList)) {
-            // e.g. we changed the definition from int to list
-            // replace the item with a select list but use the item value
-            ConfigurationSelectList list = new ConfigurationSelectList(description, toolTip, options, item.getValue(), defVal);
-            items.put(description, list);
-        }
-        return (int) getValue(description, category, defVal, 0, options.length-1, toolTip, Integer.class);
-    }
-
     public Object getValue(String description, int category, Object defVal, String toolTip, Class clazz) {
         return getValue(description, category, defVal, null, null, toolTip, clazz);
     }
@@ -148,52 +98,42 @@ public class Configuration implements IConfiguration {
         }
         
         // Always let code given meta info override config file values
-        item.key=I18n.translate(description);
+        item.key=description;
         item.minValue=minVal;
         item.maxValue=maxVal;
         item.toolTip=toolTip;
         item.defaultValue=defVal;
 
-        if (item.getValue().getClass()==clazz) {
-            return item.getValue();
-        } else if (item.getValue().getClass() == Double.class && clazz==Integer.class) {
+        if (item.value.getClass()==clazz) {
+            return item.value;
+        } else if (item.value.getClass() == Double.class && clazz==Integer.class) {
             // repair gson reading int as double
-            int value=(int)(double)(Double) item.getValue();
-            item.setValue((Integer) value);
-            return item.getValue();
-        } else if (item.getValue().getClass() == Double.class && clazz==Float.class) {
+            int value=(int)(double)(Double) item.value;
+            item.value = (Integer) value;
+            return item.value;
+        } else if (item.value.getClass() == Double.class && clazz==Float.class) {
             // repair gson reading int as double
-            float value=(float)(double)(Double) item.getValue();
-            item.setValue((Float) value);
-            return item.getValue();
-        } else if (item.getValue().getClass() == ConfigurationMinecraftColor.class && clazz == Integer.class) {
-            int  result = ((ConfigurationMinecraftColor)item.getValue()).colorIndex;
-            return result;
-        } else if (item.getValue().getClass() == ConfigurationTrueColor.class && clazz == Integer.class) {
-            ConfigurationTrueColor tC = ((ConfigurationTrueColor)item.getValue());
-            return tC.getInt();
+            float value=(float)(double)(Double) item.value;
+            item.value = (Float) value;
+            return item.value;
         }
-        item.setValue(defVal);
+        item.value=defVal;
         wasChanged=true;
         return defVal;
     }
-
-    @Override
+    
     public Object getValue(String description) {
-        return items.get(description).getValue();
+        return items.get(description).value;
     }
 
-    @Override
     public Object getDefault(String description) {
         return items.get(description).defaultValue;
     }
     
-    @Override
     public Object getMin(String description) {
         return items.get(description).minValue;
     }
 
-    @Override
     public Object getMax(String description) {
         return items.get(description).maxValue;
     }
@@ -202,48 +142,24 @@ public class Configuration implements IConfiguration {
         return items.get(description).toolTip;
     }
     
-    @Override
-    public boolean isSelectList(String description) {
-        return items.get(description) instanceof ConfigurationSelectList;
-    }
-    
-    @Override
-    public String[] getListOptions(String description) {
-        return ((ConfigurationSelectList) items.get(description)).getOptions();
-    }
-    
     /**
      * Forgets about a config parameter that was, for example, present in older versions.
      * @param item
      */
     public void forget(String item) {
         items.remove(item);
-        wasChanged = true;
-    }
-    
-    public void migrate(String oldKey, String newKey) {
-        ConfigurationItem oldItem = items.get(oldKey);
-        items.remove(oldKey);
-        if (oldItem != null) {
-            oldItem.key = newKey;
-            items.put(newKey, oldItem);
-        }
-        wasChanged = true;
     }
 
-    @Override
     public boolean setValue(String description, Object value) {
         ConfigurationItem item=items.get(description);
-        if (item==null) {
+        if (item==null)
             return false;
-        }
-        item.setValue(value);
+        item.value=value;
         wasChanged=true;
         return true;
     }
     
-    @Override
-    public List<String> getKeys() {
+    public List getKeys() {
         List list=new ArrayList(items.keySet());
         Collections.sort(list);
         return list;
